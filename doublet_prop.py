@@ -29,8 +29,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('optimized_mask1_49.txt')
-phase2 = np.loadtxt('optimized_mask2_49.txt')
+phase1 = np.loadtxt('results/optimized_mask1_49.txt')
+phase2 = np.loadtxt('results/optimized_mask2_49.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)

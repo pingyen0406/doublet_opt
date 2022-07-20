@@ -68,7 +68,12 @@ def plot2Field(data1,data2,xData,yData,title1=None,title2=None):
     axs[1].set_title(title2)
     fig.colorbar(im2,ax=axs[1])
     return fig
-
+# Find the maximum value and its index (row and column)
+def findMax2D(data):
+    max_tuple = torch.max(data, dim=1)
+    max_row_index = torch.argmax(max_tuple[0])
+    max_col_index = torch.argmax(data[max_row_index])
+    return max_tuple[0], max_row_index, max_col_index
 # Convert tensor to ndarray 
 def detach(data):
     return data.cpu().detach().numpy()

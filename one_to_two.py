@@ -151,10 +151,10 @@ def main():
     """# ********************Start Training!****************************"""
     start = time.time()
     phase1, phase2, record = train(focusOpt,config,initAmp,target_I,device)
-    np.savetxt('optimized_mask1_49.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('optimized_mask2_49.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask1_49.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask2_49.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('loss_record.txt',loss_record)
+    np.savetxt('results/loss_record.txt',loss_record)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""

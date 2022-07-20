@@ -4,8 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-from torch.functional import F
 import time
+from tools import *
+from band_limit_ASM import band_limit_ASM
 
 """# Get cpu or gpu device for training."""
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -17,161 +18,6 @@ np.random.seed(myseed)
 torch.manual_seed(myseed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(myseed)
-
-# Create a Gausian beam profile
-def gaussian(lambda0,w0,z,x,y):
-    """
-    ****Generating a gaussion function****
-
-    lambda0: operating wavelength
-    w0: beam waist
-    z: distance from waist
-    x: x grid
-    y: y grid
-    """
-
-    gX,gY = torch.meshgrid(x,y)
-    k0 = 2*np.pi/lambda0
-    zr = np.pi*w0**2/lambda0
-    Rz = z*(1+(zr/z)**2)
-    wz = w0*np.sqrt(1+(z/zr)**2)
-    Ez = w0/wz*torch.exp(-(gX**2+gY**2)/wz**2)#*torch.exp(1j*(k0*z+k0*(gX**2+gY**2)/2/Rz))
-    return Ez
-
-# Create a rect function
-def rect(x,y,center,size):
-    """
-    ****Generating a rectangle region has value 1****
-
-    lambda0: operating wavelength
-    x: x grid
-    y: y grid
-    center: list, center of the rectangle (index number)
-    size: list, size of the rectangle (index number)
-    """
-    gX,gY = torch.meshgrid(x,y)
-    rect = torch.zeros(gX.shape)
-    rect[center[1]-int(size[1]/2):center[1]+int(size[1]/2),center[0]-int(size[0]/2):center[0]+int(size[0]/2)]=1
-    return rect
-
-# create a band-limited transfer matrix(k-domain)
-def band_limit_ASM(source, prop_z, mesh, padRatio=1,lambda0=1.55,device=device,cut=False):
-    """
-    ****Band-limited angular spectrum method****
-
-    source: u0 at input plane, must in a "square matrix"
-    propz: propagation distance
-    mesh: mesh of the input source
-    padRatio: zero padding size with respect to the input source
-    lambda0: operating wavelength
-    device: 'cuda' or 'cpu'
-    """
-    # read input source and create its meshgrid
-    ny,nx = list(source.size())
-    if ny != nx:
-        raise Exception('The input source is not a square matrix!')
-    xs = torch.tensor([mesh*i for i in range(nx)]) 
-    ys = torch.tensor([mesh*i for i in range(ny)])
-    xs -= torch.median(xs)
-    ys -= torch.median(ys)
-    Xs,Ys = torch.meshgrid(xs,ys)
-    
-    # Padding zero to the source aperture
-    # Create simulation window meshgrid
-    pad_nx = int(padRatio*nx)
-    pad_ny = int(padRatio*ny)
-    if pad_nx%2 ==0:
-        pad_nx+=1
-    if pad_ny%2 ==0:
-        pad_ny+=1
-    x_width_w = (2*pad_nx+nx-1)*mesh
-    y_width_w = (2*pad_ny+ny-1)*mesh
-    xw = torch.tensor([mesh*i for i in range(int(2*pad_nx+nx))]) 
-    yw = torch.tensor([mesh*i for i in range(int(2*pad_ny+ny))])
-    xw -= torch.median(xw)
-    yw -= torch.median(yw)
-    Xw,Yw = torch.meshgrid(xw,yw)
-    Ny,Nx = list(Xw.size())
-    padding = nn.ZeroPad2d((pad_nx,pad_ny,pad_nx,pad_ny))
-    window = padding(source)
-    # Create corersponding meshgrid in freq-domain for simulation window
-    # See FT_sampling.pdf in the folder for reference
-    Ny,Nx = list(window.size())
-    Fx_max = 1/(2*mesh)
-    Fy_max = 1/(2*mesh)
-    dFx = 1/x_width_w
-    dFy = 1/y_width_w
-    fx = np.linspace(-Fx_max,Fx_max,Nx)
-    fy = np.linspace(-Fy_max,Fy_max,Ny)
-    fX,fY = np.meshgrid(fx,fy)
-    alpha = lambda0*fX
-    beta = lambda0*fY
-    # Create band-limited matrix
-    ux_lim = 1/np.sqrt(4*dFx**2*prop_z**2+1)/lambda0
-    uy_lim = 1/np.sqrt(4*dFy**2*prop_z**2+1)/lambda0    
-    ux_lim_n = np.argwhere(abs(fx)<ux_lim)
-    uy_lim_n = np.argwhere(abs(fy)<uy_lim)
-    band_matrix = torch.ones((len(uy_lim_n),len(ux_lim_n)))
-    padding_band = nn.ZeroPad2d(int((Nx-len(ux_lim_n))/2))
-    band_matrix = padding_band(band_matrix)
-
-    gamma = np.sqrt(1-alpha**2-beta**2,dtype=complex) # Assume alpha**2+beta**2 < 1
-    gamma = torch.tensor(gamma)
-    gamma*=band_matrix # Combine band-lmited matrix and gamma (z-direction)
-    prop_matrix = torch.exp(1j*2*torch.pi/lambda0*prop_z*gamma)
-    window, prop_matrix = window.to(device), prop_matrix.to(device)
-    # Propagation!
-    target = plane_prop(window,prop_matrix)
-    # Cut out the region used for zero-padding if needed
-    if cut==True:
-        target = target[int((Ny-ny)/2):int((Ny+ny)/2),int((Nx-nx)/2):int((Nx+nx)/2)]
-        return target, xs, ys
-    else:
-        return target, xw, yw
-# ASM Propagation 
-def plane_prop(source, prop_matrix):
-    source_f = torch.fft.fftshift(torch.fft.fft2(source))
-    target = torch.fft.ifft2(torch.fft.fftshift(source_f*prop_matrix)) 
-    return target
-
-# Find the maximum value and its index (row and column)
-def findMax2D(data):
-    max_tuple = torch.max(data, dim=1)
-    max_row_index = torch.argmax(max_tuple[0])
-    max_col_index = torch.argmax(data[max_row_index])
-    return max_tuple[0], max_row_index, max_col_index
-
-# 2D image plot
-def plotField(data,xData,yData,title=None):
-    """Plot the field distribution"""
-    data = data.cpu().detach().numpy()
-    xData = xData.cpu().detach().numpy()
-    yData = yData.cpu().detach().numpy()
-    fig = plt.figure(figsize=[7.5,6])
-    ax1 = fig.add_subplot(111)
-    plotData = plt.imshow(data,origin='lower',extent=[xData[0],xData[-1],yData[0],yData[-1]],
-                            cmap='jet',aspect='auto')
-    plt.title(title)
-    plt.colorbar()
-    return fig
-# 2 image plots share same coordinates
-def plot2Field(data1,data2,xData,yData,title1=None,title2=None):
-    """Compare 2 field, and they should share the same x,y coordinates"""
-    data1 = data1.cpu().detach().numpy()
-    data2 = data2.cpu().detach().numpy()
-    xData = xData.cpu().detach().numpy()
-    yData = yData.cpu().detach().numpy()
-    fig, axs= plt.subplots(1,2)
-    im1 = axs[0].imshow(data1,origin='lower',extent=[xData[0],xData[-1],yData[0],yData[-1]],cmap='jet',aspect='auto')
-    axs[0].set_title(title1)
-    fig.colorbar(im1,ax=axs[0])
-    im2 = axs[1].imshow(data2,origin='lower',extent=[xData[0],xData[-1],yData[0],yData[-1]],cmap='jet',aspect='auto')
-    axs[1].set_title(title2)
-    fig.colorbar(im2,ax=axs[1])
-    return fig
-
-def detach(data):
-    return data.cpu().detach().numpy()
 
 # Model class
 class Model(nn.Module):
@@ -217,7 +63,7 @@ def train(model,config,initAmp,target,device):
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
-            torch.save(model.state_dict(),'best_model.pth') # Save best model if it improves.
+            torch.save(model.state_dict(),'results/best_model.pth') # Save best model if it improves.
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
@@ -279,7 +125,7 @@ def main():
 
     """# ** Define target E-field**"""
     from PIL import Image
-    target_image = Image.open('testZ.png')
+    target_image = Image.open('figures/testZ.png')
     target_image = target_image.resize((len(xw),len(yw)))
     target_image = target_image.convert('L')
     target_I = np.array(target_image,dtype=float)
@@ -303,7 +149,7 @@ def main():
     """# ******************** Start Training!****************************"""
     start = time.time()
     phase, record = train(focusOpt,config,initAmp,target_I,device)
-    np.savetxt('optimized_mask.txt',phase.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask.txt',phase.cpu().detach().numpy()*2*np.pi)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ******************** End Training!******************************"""
