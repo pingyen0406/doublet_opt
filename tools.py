@@ -25,7 +25,7 @@ def gaussian(lambda0,w0,z,x,y):
     return Ez
 
 # Create a rect function
-def rect(x,y,center,size):
+def rect(all_size,center,rect_size):
     """
     ****Generating a rectangle region has value 1****
 
@@ -35,9 +35,11 @@ def rect(x,y,center,size):
     center: list, center of the rectangle (index number)
     size: list, size of the rectangle (index number)
     """
-    gX,gY = np.meshgrid(x,y)
-    rect = torch.zeros(gX.shape)
-    rect[center[1]-int(size[1]/2):center[1]+int(size[1]/2),center[0]-int(size[0]/2):center[0]+int(size[0]/2)]=1
+    center = center.astype(int)
+    rect_size = rect_size.astype(int)
+    rect = torch.zeros(all_size)
+    rect[ center[1]-int(rect_size[1]/2) : center[1]+int(rect_size[1]/2),
+          center[0]-int(rect_size[0]/2) : center[0]+int(rect_size[0]/2) ]=1
     return rect
 
 # 2D image plot
@@ -79,25 +81,26 @@ def detach(data):
     return data.cpu().detach().numpy()
 
 # Generate 1D SLM source
-def line_SLM_source(N,x,y,beam_w,pitch,lambda0=1.55):
+def line_SLM_source(N,all_size,beam_w,pitch,lambda0=1.55):
     """
-    Generate a fields on 1D SLM field
+    Generate a uniform distributed 1D SLM light source seperately
 
     N: number of SLM pixels
-    x: x grid vector
-    y: y grid vector
+    all_size: shape of the matrix contains the SLM
     beam_w: beam size (pixel)
     pitch: pitch between beams (pixel)
 
-    output: (N*len(x)*len(y))complex tensor of the SLM E-field
+    output: (N*len(x)*len(y))complex tensor with N-th SLM pixel on 
     """
-    slm_source = torch.empty((N,len(x),len(y)))
-    c_index = int(len(x)/2)
+    slm_source = torch.empty((N,all_size[1],all_size[0]))
+    c_index = int(len(all_size)/2)
 
     for i in range(N):
-        slm_source[i] = rect(x,y,(c_index,c_index+pitch*(i-int(N/2))),(beam_w,beam_w))
+        slm_source[i] = rect(all_size,(c_index,c_index+pitch*(i-int(N/2))),(beam_w,beam_w))
         #slm_source[i] = gaussian(1.55,5,0.001,x-pitch*5*(i-int(N/2)),y)
     return slm_source
+
+
 
 # Normailze phase between [0,1]
 # def norPhase(phaseData):

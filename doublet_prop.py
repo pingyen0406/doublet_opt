@@ -17,8 +17,8 @@ period = 5
 N_atom =  401
 mesh = 5
 f = 20000
-N_slm= 49
-slm_pitch = 5 # pixels
+N_slm= 36
+slm_pitch = 8 # pixels
 n_mesh = int(N_atom*period/mesh)
 x_lens = torch.tensor([i*mesh for i in range(n_mesh)])
 y_lens = torch.tensor([i*mesh for i in range(n_mesh)])
@@ -42,21 +42,29 @@ phase2 -= torch.min(phase2)
 # phase2 = norPhase(phase2)
 
 plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
-"""# ** Generate initial amp **"""
 
-initAmp = line_SLM_source(N_slm,x_lens,y_lens,2,slm_pitch,lambda0)
+"""# ** Generate indices of the input amplitude **"""
+initAmp_index = np.empty((N_slm,4))
+c_index = int(N_atom/2)
+for i in range(N_slm):
+    initAmp_index[i] = np.array([c_index,c_index+slm_pitch*(i-int(N_slm/2)),2,2])
+initAmp_index = initAmp_index.astype(int)
 
+initAmp = torch.empty((N_slm,len(phase1),len(phase1)))
+for i in range(N_slm):
+    # Generate initial amplitude with given position and size
+    initAmp[i] = rect(phase1.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
+    
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
-fake_amp = initAmp[0]+initAmp[12]+initAmp[24]+initAmp[36]+initAmp[48]
+fake_amp = initAmp[0]+initAmp[2]+initAmp[4]+initAmp[6]+initAmp[8]
 
-plotField(fake_amp,x_lens,y_lens,'imageplane')
+plotField(fake_amp,x_lens,y_lens,'input source')
 
 
 E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)
-inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*fake2),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
-
-final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*fake2),f,mesh,1,1.55,device='cpu') 
+inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
+final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
 final_I = abs(final_E)**2
 final_I /= torch.max(final_I)
 

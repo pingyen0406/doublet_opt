@@ -10,7 +10,6 @@ import time
 
 """# Get cpu or gpu device for training."""
 device = "cuda" if torch.cuda.is_available() else "cpu"
-device = 'cpu'
 print(f"Using {device} device")
 myseed = 42069  # set a random seed for reproducibility
 torch.backends.cudnn.deterministic = True
@@ -35,47 +34,48 @@ class Model(nn.Module):
         self.phi2 = nn.Parameter(torch.rand((int(input_dim),int(input_dim))))
     # Forward propagation     
     def forward(self,amp):
-        for i in range(self.N_slm):
-            E_before_mask1,_,_ = band_limit_ASM(amp[i],2000,self.mesh,1,self.lambda0,cut=True,device=device)
-            E_inter, _,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*self.phi1*2*torch.pi),1000,self.mesh,1,self.lambda0/1.44,cut=True,device=device)
-            E_imag,_,_ = band_limit_ASM(E_inter*torch.exp(1j*self.phi2*2*torch.pi),self.propZ,self.mesh,1,self.lambda0,device=device)
-            I_image = abs(E_imag)**2
-            I_image = I_image/torch.max(I_image)
-            if i==0:
-                I_image_list = torch.empty((self.N_slm,I_image.shape[0],I_image.shape[1]))
-                I_image_list[0] = I_image
-            else:
-                I_image_list[i] = I_image
-        return I_image_list
+        E_before_mask1,_,_ = band_limit_ASM(amp,2000,self.mesh,1,self.lambda0,cut=True,device=device)
+        E_inter, _,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*self.phi1*2*torch.pi),1000,self.mesh,1,self.lambda0/1.44,cut=True,device=device)
+        E_imag,_,_ = band_limit_ASM(E_inter*torch.exp(1j*self.phi2*2*torch.pi),self.propZ,self.mesh,1,self.lambda0,device=device)
+        I_image = abs(E_imag)**2
+        I_image = I_image/torch.max(I_image)
+        return I_image
     
     # Loss calculation
     def cal_loss(self,pred,target):
-        loss = 0
-        for i in range(self.N_slm):
-            tmp_loss = torch.log(torch.sum(pred[i]*target[i]))
-            loss = loss + tmp_loss
-        return -loss
-        #loss = nn.CrossEntropyLoss()
-        #target = target.double()
-        #return loss(pred,target)
+        return -torch.log(torch.sum(pred*target))
+
 
 """# Training function    """
-def train(model,config,initAmp,target,device):
+def train(model,config,initAmp_index,target_I_index,device):
     #print("Matrix size = ", str(target.shape))
     n_loop = config['n_loops'] # Number of the optimization loops
     optimizer = getattr(torch.optim, config['optimizer'])(
         model.parameters(), **config['optim_hparas'])
     loss_record = {'N':[], 'Loss':[]}
-    #initAmp.to(device)
-    #target = target.to(device)
     min_mse = 10000
     iteration = 0
     early_stop_cnt = 0    
     while iteration < n_loop:
         optimizer.zero_grad()
-        pred = model(initAmp)
-        #pred = pred.to(device)
-        loss = model.cal_loss(pred,target)
+        for i in range(model.N_slm):
+            # Generate initial amplitude with given position and size
+            initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
+            initAmp = initAmp.to(device)
+            
+            # Put initial ampitude into forward propagation and obtain image plane result
+            pred = model(initAmp)
+            
+            # Generate target intensity with given position and size
+            target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
+            target_I = target_I.to(device)
+            
+            # Calaulation loss
+            if i==0:
+                loss = model.cal_loss(pred,target_I)
+            else:
+                loss += model.cal_loss(pred,target_I)
+            del target_I, pred
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -97,7 +97,6 @@ def train(model,config,initAmp,target,device):
     return model.phi1, model.phi2, loss_record
 
 
-
 """# **Setup Hyper-parameters** """
 config={
     'optimizer': 'Adam',
@@ -110,7 +109,6 @@ config={
     'early_stop_n': 20
 }
 
-
 def main():
     """# ** global parameters **"""
     lambda0 = 1.55
@@ -119,42 +117,36 @@ def main():
     N_atom =  401
     mesh = 5
     f = 20000
-    N_slm = 49
-    slm_pitch = 5 # pixels
-    n_mesh = int(N_atom*period/mesh)
-    x_lens = torch.tensor([i*mesh for i in range(n_mesh)])
-    y_lens = torch.tensor([i*mesh for i in range(n_mesh)])
-    x_lens-= torch.median(x_lens)
-    y_lens-= torch.median(y_lens)
+    N_slm = 36
+    slm_pitch = 8 # pixels
 
-    #init_phase = np.random.uniform(0,2*np.pi,inputA.shape)
-    xw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
-    yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
-    xw -= torch.median(xw)
-    yw -= torch.median(yw)
+    """# ** Generate indices of the input amplitude **"""
+    initAmp_index = np.empty((N_slm,4))
+    c_index = int(N_atom/2)
+    for i in range(N_slm):
+        initAmp_index[i] = np.array([c_index,c_index+slm_pitch*(i-int(N_slm/2)),2,2])
+    initAmp_index = initAmp_index.astype(int)
 
-    """# ** Generate initial amp **"""
-    initAmp = line_SLM_source(N_slm,x_lens,y_lens,2,slm_pitch,lambda0)
-    """# ** Define target E-field**"""
-    target_E = torch.empty(N_slm,len(xw),len(yw))
+    """# ** Generate indices of the target inensity**"""
+    target_I_index = np.empty((N_slm,4))
     count=0
-    for i in range(7):
-        for j in range(7):
-            target_E[count] = rect(xw,yw,[401+50*j,401+50*i],[50,50])
+    for i in range(6):
+        for j in range(6):
+            target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
             count+=1
-    target_I = target_E
+    target_I_index = target_I_index.astype(int)
     """# Model """
     focusOpt = Model(N_atom*period/mesh,f,mesh,lambda0,N_slm).to(device)
+    focusOpt = focusOpt.to(device)
     initPhase = focusOpt.phi0
-    initPhase = initPhase.to(device)
-    initAmp = initAmp.to(device)
+
     """# ********************Start Training!****************************"""
     start = time.time()
-    phase1, phase2, record = train(focusOpt,config,initAmp,target_I,device)
-    np.savetxt('results/optimized_mask1_49.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_49.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    phase1, phase2, record = train(focusOpt,config,initAmp_index,target_I_index,device)
+    np.savetxt('results/optimized_mask1_36.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask2_36.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record.txt',loss_record)
+    np.savetxt('results/loss_record_36.txt',loss_record)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
