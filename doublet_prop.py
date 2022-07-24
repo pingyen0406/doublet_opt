@@ -17,8 +17,8 @@ period = 5
 N_atom =  401
 mesh = 5
 f = 20000
-N_slm= 36
-slm_pitch = 8 # pixels
+N_slm= 49
+slm_pitch = 5 # pixels
 n_mesh = int(N_atom*period/mesh)
 x_lens = torch.tensor([i*mesh for i in range(n_mesh)])
 y_lens = torch.tensor([i*mesh for i in range(n_mesh)])
@@ -57,7 +57,7 @@ for i in range(N_slm):
     
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
-fake_amp = initAmp[0]+initAmp[2]+initAmp[4]+initAmp[6]+initAmp[8]
+fake_amp = initAmp[0]+initAmp[24]+initAmp[48]
 
 plotField(fake_amp,x_lens,y_lens,'input source')
 
@@ -69,6 +69,20 @@ final_I = abs(final_E)**2
 final_I /= torch.max(final_I)
 
 plotField(final_I,xw,yw,'imageplane')
+
+target_I_index = np.empty((N_slm,4))
+count=0
+for i in range(7):
+    for j in range(7):
+        target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
+        count+=1
+target_I_index = target_I_index.astype(int)
+target_I = torch.empty((N_slm,1203,1203))
+for i in range(49):
+    target_I[i] = rect((1203,1203),target_I_index[i,0:2],target_I_index[i,2:4])
+
+plotField(target_I[23]+target_I[24],xw,yw)
+
 
 plt.show()
 

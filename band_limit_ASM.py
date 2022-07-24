@@ -73,7 +73,7 @@ def band_limit_ASM(source, prop_z, mesh, padRatio=1,lambda0=1.55,device='cpu',cu
     band_matrix = padding_band(band_matrix)
 
     gamma = np.sqrt(1-alpha**2-beta**2,dtype=complex) # Assume alpha**2+beta**2 < 1
-    gamma = torch.tensor(gamma)
+    gamma = torch.tensor(gamma,dtype=torch.complex128)
     gamma*=band_matrix # Combine band-lmited matrix and gamma (z-direction)
     prop_matrix = torch.exp(1j*2*torch.pi/lambda0*prop_z*gamma)
     window, prop_matrix = window.to(device), prop_matrix.to(device)

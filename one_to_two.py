@@ -1,5 +1,6 @@
-# Simple optimizer to obtain a focusing wavefront
+# Optimization of 1D SLM to 2D pixels
 """********** Use tensor instead of ndarray in the script **********"""
+from hypothesis import target
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -57,7 +58,6 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0    
     while iteration < n_loop:
-        optimizer.zero_grad()
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
@@ -69,13 +69,14 @@ def train(model,config,initAmp_index,target_I_index,device):
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
             target_I = target_I.to(device)
-            
+
             # Calaulation loss
+            
             if i==0:
                 loss = model.cal_loss(pred,target_I)
             else:
-                loss += model.cal_loss(pred,target_I)
-            del target_I, pred
+                # Note: use 'float' instead of 'tensor', or memory will blow up
+                loss += float(model.cal_loss(pred,target_I))
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -83,6 +84,8 @@ def train(model,config,initAmp_index,target_I_index,device):
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
+        
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
@@ -117,8 +120,8 @@ def main():
     N_atom =  401
     mesh = 5
     f = 20000
-    N_slm = 36
-    slm_pitch = 8 # pixels
+    N_slm = 49
+    slm_pitch = 5 # pixels
 
     """# ** Generate indices of the input amplitude **"""
     initAmp_index = np.empty((N_slm,4))
@@ -130,8 +133,8 @@ def main():
     """# ** Generate indices of the target inensity**"""
     target_I_index = np.empty((N_slm,4))
     count=0
-    for i in range(6):
-        for j in range(6):
+    for i in range(7):
+        for j in range(7):
             target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
@@ -143,10 +146,10 @@ def main():
     """# ********************Start Training!****************************"""
     start = time.time()
     phase1, phase2, record = train(focusOpt,config,initAmp_index,target_I_index,device)
-    np.savetxt('results/optimized_mask1_36.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_36.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask1_x.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask2_x.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_36.txt',loss_record)
+    np.savetxt('results/loss_record_x.txt',loss_record)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
