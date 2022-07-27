@@ -1,6 +1,6 @@
 # Optimization of 1D SLM to 2D pixels
 """********** Use tensor instead of ndarray in the script **********"""
-from hypothesis import target
+from copyreg import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -8,6 +8,7 @@ import torch.nn as nn
 from band_limit_ASM import band_limit_ASM
 from tools import *
 import time
+import yaml
 
 """# Get cpu or gpu device for training."""
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -23,10 +24,12 @@ if torch.cuda.is_available():
 
 # Model class
 class Model(nn.Module):
-    def __init__(self,input_dim,propZ,mesh,lambda0,N_slm):
+    def __init__(self,input_dim,distance,mesh,lambda0,N_slm):
         super().__init__()
         self.mesh = mesh
-        self.propZ = propZ
+        self.d1 = distance['d1']
+        self.d2 = distance['d2']
+        self.t = distance['t']
         self.lambda0 = lambda0
         self.N_slm = N_slm
         # initialize the phase mask
@@ -35,9 +38,9 @@ class Model(nn.Module):
         self.phi2 = nn.Parameter(torch.rand((int(input_dim),int(input_dim))))
     # Forward propagation     
     def forward(self,amp):
-        E_before_mask1,_,_ = band_limit_ASM(amp,2000,self.mesh,1,self.lambda0,cut=True,device=device)
-        E_inter, _,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*self.phi1*2*torch.pi),1000,self.mesh,1,self.lambda0/1.44,cut=True,device=device)
-        E_imag,_,_ = band_limit_ASM(E_inter*torch.exp(1j*self.phi2*2*torch.pi),self.propZ,self.mesh,1,self.lambda0,device=device)
+        E_before_mask1,_,_ = band_limit_ASM(amp,self.d1,self.mesh,1,self.lambda0,cut=True,device=device)
+        E_inter, _,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*self.phi1*2*torch.pi),self.t,self.mesh,1,self.lambda0/1.44,cut=True,device=device)
+        E_imag,_,_ = band_limit_ASM(E_inter*torch.exp(1j*self.phi2*2*torch.pi),self.d2,self.mesh,1,self.lambda0,device=device)
         I_image = abs(E_imag)**2
         I_image = I_image/torch.max(I_image)
         return I_image
@@ -76,7 +79,7 @@ def train(model,config,initAmp_index,target_I_index,device):
                 loss = model.cal_loss(pred,target_I)
             else:
                 # Note: use 'float' instead of 'tensor', or memory will blow up
-                loss += float(model.cal_loss(pred,target_I))
+                loss = loss + float(model.cal_loss(pred,target_I))
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -100,29 +103,55 @@ def train(model,config,initAmp_index,target_I_index,device):
     return model.phi1, model.phi2, loss_record
 
 
-"""# **Setup Hyper-parameters** """
-config={
-    'optimizer': 'Adam',
-    'optim_hparas': {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
-        'lr': 0.01,                  # learning rate 
-        #'betas': (0.1,0.5),          
-        #'momentum': 0.5     w         # momentum for SGD
-    },
-    'n_loops': 100,
-    'early_stop_n': 20
-}
+# Input config class
+class cfg_class:
+    sectionName='one_to_two_config'
+    options={'N_slm': (int,True),
+             'slm_pitch': (int,True),
+             'N_atom': (int,True),
+             'period': (int or float,True),
+             'distance': (dict,True),
+             'training': (dict,True)
+             }
 
+    def __init__(self,inFileName):
+        inf = open(inFileName,'r')
+        yamlcfg = yaml.safe_load(inf)
+        inf.close()
+        cfg = yamlcfg.get(self.sectionName)
+        if cfg is None: raise Exception('Missing one_to_two_config section in yaml file')
+        #iterate over options
+        for opt in self.options:
+            if opt in cfg:
+                optval=cfg[opt]
+ 
+                #verify parameter type
+                if type(optval) != self.options[opt][0]:
+                    raise Exception('Parameter "{}" has wrong type'.format(opt))
+                 
+                #create attributes on the fly
+                setattr(self,opt,optval)
+            else:
+                if self.options[opt][1]:
+                    raise Exception('Missing mandatory parameter "{}"'.format(opt))
+                else:
+                    setattr(self,opt,None)
+            def __str__(self):
+                return str(yaml.dump(self.__dict__,default_flow_style=False))
+
+# Main function
 def main():
+    input_cfg = 'config.yaml'
+    cfg = cfg_class(input_cfg)
     """# ** global parameters **"""
     lambda0 = 1.55
     k0 = 2*np.pi/lambda0
-    period = 5
-    N_atom =  401
-    mesh = 5
-    f = 20000
-    N_slm = 49
-    slm_pitch = 5 # pixels
-
+    period = cfg.period
+    N_atom =  cfg.N_atom
+    mesh = cfg.period
+    N_slm = cfg.N_slm
+    slm_pitch = cfg.slm_pitch # pixels
+    distance = cfg.distance
     """# ** Generate indices of the input amplitude **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
@@ -133,26 +162,31 @@ def main():
     """# ** Generate indices of the target inensity**"""
     target_I_index = np.empty((N_slm,4))
     count=0
-    for i in range(7):
-        for j in range(7):
+    for i in range(int(np.sqrt(N_slm))):
+        for j in range(int(np.sqrt(N_slm))):
             target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
     """# Model """
-    focusOpt = Model(N_atom*period/mesh,f,mesh,lambda0,N_slm).to(device)
+    focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm).to(device)
     focusOpt = focusOpt.to(device)
     initPhase = focusOpt.phi0
 
     """# ********************Start Training!****************************"""
+    training_cfg = cfg.training
     start = time.time()
-    phase1, phase2, record = train(focusOpt,config,initAmp_index,target_I_index,device)
-    np.savetxt('results/optimized_mask1_x.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_x.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
+    np.savetxt('results/optimized_mask1_xx.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask2_xx.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_x.txt',loss_record)
+    np.savetxt('results/loss_record_xx.txt',loss_record)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
+
+    config = {**config,'totel elapsed time':end-start}
+    with open('one_to_two.log','w') as log:
+        pickle.dump(config,log)
 
     plt.figure()
     plt.plot(record['N'],record['Loss'])

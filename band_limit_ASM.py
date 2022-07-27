@@ -29,8 +29,8 @@ def band_limit_ASM(source, prop_z, mesh, padRatio=1,lambda0=1.55,device='cpu',cu
         raise Exception('The input source is not a square matrix!')
     xs = torch.tensor([mesh*i for i in range(nx)]) 
     ys = torch.tensor([mesh*i for i in range(ny)])
-    xs -= torch.median(xs)
-    ys -= torch.median(ys)
+    xs = xs - torch.median(xs)
+    ys = ys - torch.median(ys)
     Xs,Ys = torch.meshgrid(xs,ys)
     
     # Padding zero to the source aperture
@@ -45,8 +45,8 @@ def band_limit_ASM(source, prop_z, mesh, padRatio=1,lambda0=1.55,device='cpu',cu
     y_width_w = (2*pad_ny+ny-1)*mesh
     xw = torch.tensor([mesh*i for i in range(int(2*pad_nx+nx))]) 
     yw = torch.tensor([mesh*i for i in range(int(2*pad_ny+ny))])
-    xw -= torch.median(xw)
-    yw -= torch.median(yw)
+    xw = xw - torch.median(xw)
+    yw = yw - torch.median(yw)
     Xw,Yw = torch.meshgrid(xw,yw)
     Ny,Nx = list(Xw.size())
     padding = nn.ZeroPad2d((pad_nx,pad_ny,pad_nx,pad_ny))
@@ -74,7 +74,7 @@ def band_limit_ASM(source, prop_z, mesh, padRatio=1,lambda0=1.55,device='cpu',cu
 
     gamma = np.sqrt(1-alpha**2-beta**2,dtype=complex) # Assume alpha**2+beta**2 < 1
     gamma = torch.tensor(gamma,dtype=torch.complex128)
-    gamma*=band_matrix # Combine band-lmited matrix and gamma (z-direction)
+    gamma = gamma * band_matrix # Combine band-lmited matrix and gamma (z-direction)
     prop_matrix = torch.exp(1j*2*torch.pi/lambda0*prop_z*gamma)
     window, prop_matrix = window.to(device), prop_matrix.to(device)
     # Propagation!
@@ -104,14 +104,14 @@ def main():
     Ez0,xi,yi = band_limit_ASM(Ez0,prop_z,mesh,padRatio=1,cut=True)
     Iz0 = torch.abs(Ez0)**2
     Iz0_slice = Iz0[int(len(x)/2)]
-    Iz0_slice /= torch.max(Iz0)
+    Iz0_slice = Iz0_slice / torch.max(Iz0)
     Iz0_slice = Iz0_slice.cpu().detach().numpy()
 
     # Analytical gaussian
     Ez1 = gaussian(lambda0,w0,prop_z,x,y)
     Iz1 = torch.abs(Ez1)**2
     Iz1_slice = Iz1[int(len(x)/2)]
-    Iz1_slice /= torch.max(Iz1)
+    Iz1_slice = Iz1_slice / torch.max(Iz1)
     Iz1_slice = Iz1_slice.cpu().detach().numpy()
 
     plt.figure()
