@@ -57,11 +57,17 @@ for i in range(N_slm):
     
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
-fake_amp = initAmp[0]+initAmp[24]+initAmp[48]
+
+incident_pixel=[0,6,24,42,48]
+
+
+fake_amp=0
+for i in incident_pixel:
+    fake_amp = fake_amp+initAmp[i]
 
 plotField(fake_amp,x_lens,y_lens,'input source')
 
-
+#phase1 = torch.transpose(phase1)
 E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)
 inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
 final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
@@ -74,14 +80,17 @@ target_I_index = np.empty((N_slm,4))
 count=0
 for i in range(7):
     for j in range(7):
-        target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
+        target_I_index[count] = np.array([451+50*j,451+50*i,50,50],dtype=int)
         count+=1
 target_I_index = target_I_index.astype(int)
 target_I = torch.empty((N_slm,1203,1203))
 for i in range(49):
     target_I[i] = rect((1203,1203),target_I_index[i,0:2],target_I_index[i,2:4])
 
-plotField(target_I[23]+target_I[24],xw,yw)
+target_I_plot = 0
+for i in incident_pixel:
+    target_I_plot = target_I_plot + target_I[i]
+plotField(target_I_plot,xw,yw)
 
 
 plt.show()

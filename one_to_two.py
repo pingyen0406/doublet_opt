@@ -1,6 +1,6 @@
 # Optimization of 1D SLM to 2D pixels
 """********** Use tensor instead of ndarray in the script **********"""
-from copyreg import pickle
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
@@ -61,25 +61,26 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0    
     while iteration < n_loop:
+        optimizer.zero_grad()
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
             initAmp = initAmp.to(device)
-            
             # Put initial ampitude into forward propagation and obtain image plane result
             pred = model(initAmp)
-            
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
-            target_I = target_I.to(device)
-
-            # Calaulation loss
-            
-            if i==0:
-                loss = model.cal_loss(pred,target_I)
+            if i ==0:            
+                pred_list = torch.unsqueeze(pred,dim=0)
+                target_I_list = torch.unsqueeze(target_I,dim=0)
             else:
-                # Note: use 'float' instead of 'tensor', or memory will blow up
-                loss = loss + float(model.cal_loss(pred,target_I))
+                pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
+                target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            
+            
+        target_I_list = target_I_list.to(device)    
+        # Calaulate loss
+        loss = model.cal_loss(pred_list,target_I_list)     
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -87,8 +88,7 @@ def train(model,config,initAmp_index,target_I_index,device):
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
-        
-        optimizer.zero_grad()
+
         loss.backward()
         optimizer.step()
         
@@ -141,9 +141,9 @@ class cfg_class:
 
 # Main function
 def main():
+    """# ** load input config **"""
     input_cfg = 'config.yaml'
     cfg = cfg_class(input_cfg)
-    """# ** global parameters **"""
     lambda0 = 1.55
     k0 = 2*np.pi/lambda0
     period = cfg.period
@@ -152,21 +152,33 @@ def main():
     N_slm = cfg.N_slm
     slm_pitch = cfg.slm_pitch # pixels
     distance = cfg.distance
-    """# ** Generate indices of the input amplitude **"""
+    
+    """# ** Generate indices of the input slm source **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
     for i in range(N_slm):
         initAmp_index[i] = np.array([c_index,c_index+slm_pitch*(i-int(N_slm/2)),2,2])
     initAmp_index = initAmp_index.astype(int)
-
+    
     """# ** Generate indices of the target inensity**"""
     target_I_index = np.empty((N_slm,4))
     count=0
     for i in range(int(np.sqrt(N_slm))):
         for j in range(int(np.sqrt(N_slm))):
-            target_I_index[count] = np.array([401+50*j,401+50*i,50,50],dtype=int)
+            target_I_index[count] = np.array([451+50*j,451+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
+    # target_I_test=0
+    # initAmp_test=0
+    # for i in range(10):
+    #     target_I_test += rect((1203,1203),target_I_index[2*i,0:2],target_I_index[2*i,2:4])
+    #     initAmp_test += rect((401,401),initAmp_index[2*i,0:2],initAmp_index[2*i,2:4])   
+    # plt.figure()
+    # plt.imshow(target_I_test)
+    # plt.figure()
+    # plt.imshow(initAmp_test)
+    # plt.show()
+    # breakpoint()
     """# Model """
     focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm).to(device)
     focusOpt = focusOpt.to(device)
@@ -176,16 +188,16 @@ def main():
     training_cfg = cfg.training
     start = time.time()
     phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
-    np.savetxt('results/optimized_mask1_xx.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_xx.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask1_220801.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/optimized_mask2_220801.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_xx.txt',loss_record)
+    np.savetxt('results/loss_record_220801.txt',loss_record)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
 
-    config = {**config,'totel elapsed time':end-start}
-    with open('one_to_two.log','w') as log:
+    config = {**training_cfg,'totel elapsed time':end-start}
+    with open('one_to_two.log','wb') as log:
         pickle.dump(config,log)
 
     plt.figure()

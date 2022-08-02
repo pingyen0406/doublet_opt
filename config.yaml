@@ -11,7 +11,7 @@ one_to_two_config:
     training: {
       optimizer: 'Adam',
        optim_hparas: {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
-          'lr': 0.01                  # learning rate 
+          'lr': 0.02                  # learning rate 
           #'betas': (0.1,0.5),          
           #'momentum': 0.5     w         # momentum for SGD
       },
