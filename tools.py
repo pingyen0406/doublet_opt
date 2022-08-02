@@ -51,7 +51,7 @@ def plotField(data,xData,yData,title=None):
     fig = plt.figure(figsize=[7.5,6])
     ax1 = fig.add_subplot(111)
     plotData = plt.imshow(data,origin='lower',extent=[xData[0],xData[-1],yData[0],yData[-1]],
-                            cmap='jet',aspect='auto')
+                            cmap='hot',aspect='auto')
     plt.title(title)
     plt.colorbar()
     return fig
@@ -102,14 +102,14 @@ def line_SLM_source(N,all_size,beam_w,pitch,lambda0=1.55):
 
 
 
-# Normailze phase between [0,1]
-# def norPhase(phaseData):
-#     phaseData -=  torch.min(phaseData)
-#     size = phaseData.shape
-#     for i in range(size[0]):
-#         for j in range(size[1]):
-#             while phaseData[i,j] > 2*torch.pi:
-#                 phaseData[i,j] -= 2*torch.pi
-#             while phaseData[i,j] < 0:
-#                 phaseData[i,j] += 2*torch.pi
-#     return phaseData
+# Normailze phase between [0,2pi]
+def norPhase(phaseData):
+    phaseData -=  torch.min(phaseData)
+    size = phaseData.shape
+    for i in range(size[0]):
+        for j in range(size[1]):
+            while phaseData[i,j] > 2*torch.pi:
+                phaseData[i,j] -= 2*torch.pi
+            while phaseData[i,j] < 0:
+                phaseData[i,j] += 2*torch.pi
+    return phaseData

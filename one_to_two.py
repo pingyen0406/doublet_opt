@@ -99,7 +99,7 @@ def train(model,config,initAmp_index,target_I_index,device):
         # Stop optimizing if loss is not improved
         if early_stop_cnt>config['early_stop_n']:
             print('Early stop triggered!!')
-            break
+            break  
     return model.phi1, model.phi2, loss_record
 
 
@@ -188,13 +188,18 @@ def main():
     training_cfg = cfg.training
     start = time.time()
     phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
+    end = time.time()
+    """# ********************End Training!****************************"""
+    
+    """# load the best model"""
+    
     np.savetxt('results/optimized_mask1_220801.txt',phase1.cpu().detach().numpy()*2*np.pi)
     np.savetxt('results/optimized_mask2_220801.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
     np.savetxt('results/loss_record_220801.txt',loss_record)
-    end = time.time()
+    
     print('Elapsed time in training: ',end-start,'s')
-    """# ********************End Training!****************************"""
+    
 
     config = {**training_cfg,'totel elapsed time':end-start}
     with open('one_to_two.log','wb') as log:

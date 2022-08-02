@@ -7,6 +7,14 @@ import torch.nn as nn
 from band_limit_ASM import band_limit_ASM
 from tools import *
 import time
+from one_to_two import Model
+
+"""Plot loss"""
+loss_file = np.loadtxt('results/loss_record_220801.txt')
+number = loss_file[0]
+loss = loss_file[1]
+plt.figure()
+plt.plot(number,loss,linewidth=2)
 
 """# Get cpu or gpu device for training."""
 device = 'cpu'
@@ -38,8 +46,8 @@ phase2 = torch.tensor(phase2)
 phase1 -= torch.min(phase1)
 phase2 -= torch.min(phase2)
 
-# phase1 = norPhase(phase1)
-# phase2 = norPhase(phase2)
+phase1 = norPhase(phase1)
+phase2 = norPhase(phase2)
 
 plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
 
@@ -58,7 +66,7 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[0,6,24,42,48]
+incident_pixel=[1,2,3,4,5,8,10,12,15,17,19,30,31,32,37,39,44,46]
 
 
 fake_amp=0
