@@ -111,7 +111,8 @@ class cfg_class:
              'N_atom': (int,True),
              'period': (int or float,True),
              'distance': (dict,True),
-             'training': (dict,True)
+             'training': (dict,True),
+             'outName': (str,True)
              }
 
     def __init__(self,inFileName):
@@ -152,7 +153,7 @@ def main():
     N_slm = cfg.N_slm
     slm_pitch = cfg.slm_pitch # pixels
     distance = cfg.distance
-    
+    outName = cfg.outName
     """# ** Generate indices of the input slm source **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
@@ -189,21 +190,27 @@ def main():
     start = time.time()
     phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
     end = time.time()
-    """# ********************End Training!****************************"""
-    
-    """# load the best model"""
-    
-    np.savetxt('results/optimized_mask1_220801.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_220801.txt',phase2.cpu().detach().numpy()*2*np.pi)
-    loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_220801.txt',loss_record)
-    
     print('Elapsed time in training: ',end-start,'s')
+    """# ********************End Training!****************************"""
+      
+    """# load the best model and save results"""
     
-
+    best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
+    best_model.load_state_dict(torch.load('best_model.pth'))
+    best_model.eval()
+    phase1 = best_model.phi1
+    phase2 = best_model.phi2
+    
+    np.savetxt('results/'+cfg.outName+'1.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+'2.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    loss_record = np.array([record['N'],record['Loss']])
+    np.savetxt('results/loss_record_'+cfg.outName+'.txt',loss_record)
+    
+    
+    """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
-    with open('one_to_two.log','wb') as log:
-        pickle.dump(config,log)
+    with open('one_to_two.yaml','w') as log:
+        yaml.dump(config,log)
 
     plt.figure()
     plt.plot(record['N'],record['Loss'])

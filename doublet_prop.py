@@ -66,7 +66,7 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[1,2,3,4,5,8,10,12,15,17,19,30,31,32,37,39,44,46]
+incident_pixel=[7]
 
 
 fake_amp=0
