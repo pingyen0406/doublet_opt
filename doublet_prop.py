@@ -37,8 +37,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/optimized_mask1_49.txt')
-phase2 = np.loadtxt('results/optimized_mask2_49.txt')
+phase1 = np.loadtxt('results/optimized_mask1_220801.txt')
+phase2 = np.loadtxt('results/optimized_mask2_220801.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)
@@ -48,6 +48,10 @@ phase2 -= torch.min(phase2)
 
 phase1 = norPhase(phase1)
 phase2 = norPhase(phase2)
+
+plt.figure()
+plt.imshow(phase2,cmap='twilight')
+
 
 plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
 
@@ -66,7 +70,7 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[7]
+incident_pixel=[42]
 
 
 fake_amp=0
@@ -74,6 +78,7 @@ for i in incident_pixel:
     fake_amp = fake_amp+initAmp[i]
 
 plotField(fake_amp,x_lens,y_lens,'input source')
+
 
 #phase1 = torch.transpose(phase1)
 E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)

@@ -11,11 +11,11 @@ one_to_two_config:
     training: {
       optimizer: 'Adam',
        optim_hparas: {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
-          'lr': 0.01                  # learning rate 
+          'lr': 0.1                  # learning rate 
           #'betas': (0.1,0.5),          
           #'momentum': 0.5     w         # momentum for SGD
       },
-      n_loops: 10,
+      n_loops: 200,
       early_stop_n: 50
     }
-    outName: 'optimized_mask_testxx'
+    outName: 'optimized_mask_biglr'
