@@ -60,10 +60,7 @@ def train(model,config,initAmp_index,target_I_index,device):
     min_mse = 10000
     iteration = 0
     early_stop_cnt = 0 
-    loss = torch.empty((1,1),requires_grad=True)
-    loss = loss.to(device)  
     while iteration < n_loop:
-        
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
@@ -73,16 +70,16 @@ def train(model,config,initAmp_index,target_I_index,device):
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
             target_I = target_I.to(device)
-            # if i ==0:            
-            #     pred_list = torch.unsqueeze(pred,dim=0)
-            #     target_I_list = torch.unsqueeze(target_I,dim=0)
-            # else:
-            #     pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
-            #     target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            if i ==0:            
+                pred_list = torch.unsqueeze(pred,dim=0)
+                target_I_list = torch.unsqueeze(target_I,dim=0)
+            else:
+                pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
+                target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
             
             # Calaulate loss
-            loss = loss + float(model.cal_loss(pred,target_I))
-                
+            
+        loss = model.cal_loss(pred_list,target_I_list)    
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss

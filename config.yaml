@@ -15,7 +15,7 @@ one_to_two_config:
           #'betas': (0.1,0.5),          
           #'momentum': 0.5     w         # momentum for SGD
       },
-      n_loops: 20,
+      n_loops: 100,
       early_stop_n: 50
     }
     outName: 'optimized_mask_test'
