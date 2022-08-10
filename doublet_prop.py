@@ -37,8 +37,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/optimized_mask1_49.txt')
-phase2 = np.loadtxt('results/optimized_mask2_49.txt')
+phase1 = np.loadtxt('results/220810_biglr1.txt')
+phase2 = np.loadtxt('results/220810_biglr1.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)
@@ -66,7 +66,7 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[1,2,3,4,5,8,10,12,15,17,19,30,31,32,37,39,44,46]
+incident_pixel=[0]
 
 
 fake_amp=0

@@ -59,7 +59,9 @@ def train(model,config,initAmp_index,target_I_index,device):
     loss_record = {'N':[], 'Loss':[]}
     min_mse = 10000
     iteration = 0
-    early_stop_cnt = 0    
+    early_stop_cnt = 0 
+    loss = torch.empty((1,1),requires_grad=True)
+    loss.to(device)  
     while iteration < n_loop:
         optimizer.zero_grad()
         for i in range(model.N_slm):
@@ -70,17 +72,17 @@ def train(model,config,initAmp_index,target_I_index,device):
             pred = model(initAmp)
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
-            if i ==0:            
-                pred_list = torch.unsqueeze(pred,dim=0)
-                target_I_list = torch.unsqueeze(target_I,dim=0)
-            else:
-                pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
-                target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            target_I = target_I.to(device)
+            # if i ==0:            
+            #     pred_list = torch.unsqueeze(pred,dim=0)
+            #     target_I_list = torch.unsqueeze(target_I,dim=0)
+            # else:
+            #     pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
+            #     target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
             
-            
-        target_I_list = target_I_list.to(device)    
-        # Calaulate loss
-        loss = model.cal_loss(pred_list,target_I_list)     
+            # Calaulate loss
+            loss = loss + float(model.cal_loss(pred,target_I))
+                
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -100,7 +102,7 @@ def train(model,config,initAmp_index,target_I_index,device):
         if early_stop_cnt>config['early_stop_n']:
             print('Early stop triggered!!')
             break  
-    return model.phi1, model.phi2, loss_record
+    return loss_record
 
 
 # Input config class
@@ -111,7 +113,8 @@ class cfg_class:
              'N_atom': (int,True),
              'period': (int or float,True),
              'distance': (dict,True),
-             'training': (dict,True)
+             'training': (dict,True),
+             'outName': (str,True)
              }
 
     def __init__(self,inFileName):
@@ -138,7 +141,7 @@ class cfg_class:
                     setattr(self,opt,None)
             def __str__(self):
                 return str(yaml.dump(self.__dict__,default_flow_style=False))
-
+        
 # Main function
 def main():
     """# ** load input config **"""
@@ -153,6 +156,8 @@ def main():
     slm_pitch = cfg.slm_pitch # pixels
     distance = cfg.distance
     
+    # Print input configuration
+    print(cfg)
     """# ** Generate indices of the input slm source **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
@@ -168,42 +173,38 @@ def main():
             target_I_index[count] = np.array([451+50*j,451+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
-    # target_I_test=0
-    # initAmp_test=0
-    # for i in range(10):
-    #     target_I_test += rect((1203,1203),target_I_index[2*i,0:2],target_I_index[2*i,2:4])
-    #     initAmp_test += rect((401,401),initAmp_index[2*i,0:2],initAmp_index[2*i,2:4])   
-    # plt.figure()
-    # plt.imshow(target_I_test)
-    # plt.figure()
-    # plt.imshow(initAmp_test)
-    # plt.show()
-    # breakpoint()
+
     """# Model """
-    focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm).to(device)
+    focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm)
     focusOpt = focusOpt.to(device)
     initPhase = focusOpt.phi0
 
     """# ********************Start Training!****************************"""
     training_cfg = cfg.training
     start = time.time()
-    phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
+    record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
     end = time.time()
     """# ********************End Training!****************************"""
     
-    """# load the best model"""
+    """# load the best model and save results"""
     
-    np.savetxt('results/optimized_mask1_220801.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/optimized_mask2_220801.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
+    best_model = best_model.load_state_dict(torch.load('best_model.pth'))
+    best_model.eval()
+    phase1 = best_model.phi1
+    phase2 = best_model.phi2
+    
+    np.savetxt('results/'+cfg.outName+'1.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+'2.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_220801.txt',loss_record)
+    np.savetxt('results/loss_record_'+cfg.outName+'.txt',loss_record)
     
     print('Elapsed time in training: ',end-start,'s')
     
 
     config = {**training_cfg,'totel elapsed time':end-start}
     with open('one_to_two.log','wb') as log:
-        pickle.dump(config,log)
+        yaml.dump(config,log)
 
     plt.figure()
     plt.plot(record['N'],record['Loss'])
