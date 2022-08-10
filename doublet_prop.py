@@ -10,7 +10,7 @@ import time
 from one_to_two import Model
 
 """Plot loss"""
-loss_file = np.loadtxt('results/loss_record_220801.txt')
+loss_file = np.loadtxt('results/loss_record_optimized_mask_test.txt')
 number = loss_file[0]
 loss = loss_file[1]
 plt.figure()
@@ -37,8 +37,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/220810_biglr1.txt')
-phase2 = np.loadtxt('results/220810_biglr1.txt')
+phase1 = np.loadtxt('results/optimized_mask_test1.txt')
+phase2 = np.loadtxt('results/optimized_mask_test2.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)

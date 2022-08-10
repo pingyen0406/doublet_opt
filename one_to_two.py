@@ -61,9 +61,9 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0 
     loss = torch.empty((1,1),requires_grad=True)
-    loss.to(device)  
+    loss = loss.to(device)  
     while iteration < n_loop:
-        optimizer.zero_grad()
+        
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
@@ -90,7 +90,7 @@ def train(model,config,initAmp_index,target_I_index,device):
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
-
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
@@ -184,12 +184,13 @@ def main():
     start = time.time()
     record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
     end = time.time()
+    print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
     
     """# load the best model and save results"""
     
     best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
-    best_model = best_model.load_state_dict(torch.load('best_model.pth'))
+    best_model.load_state_dict(torch.load('best_model.pth'))
     best_model.eval()
     phase1 = best_model.phi1
     phase2 = best_model.phi2
@@ -199,13 +200,13 @@ def main():
     loss_record = np.array([record['N'],record['Loss']])
     np.savetxt('results/loss_record_'+cfg.outName+'.txt',loss_record)
     
-    print('Elapsed time in training: ',end-start,'s')
     
-
+    """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
-    with open('one_to_two.log','wb') as log:
+    with open('one_to_two.yaml','w') as log:
         yaml.dump(config,log)
-
+    
+    # Plot loss function
     plt.figure()
     plt.plot(record['N'],record['Loss'])
     plt.title('Loss')
