@@ -8,13 +8,14 @@ from band_limit_ASM import band_limit_ASM
 from tools import *
 import time
 from one_to_two import Model
+from PIL import Image
 
 """Plot loss"""
 loss_file = np.loadtxt('results/loss_record_220801.txt')
 number = loss_file[0]
 loss = loss_file[1]
-plt.figure()
-plt.plot(number,loss,linewidth=2)
+#plt.figure()
+#plt.plot(number,loss,linewidth=2)
 
 """# Get cpu or gpu device for training."""
 device = 'cpu'
@@ -46,14 +47,14 @@ phase2 = torch.tensor(phase2)
 phase1 -= torch.min(phase1)
 phase2 -= torch.min(phase2)
 
-phase1 = norPhase(phase1)
-phase2 = norPhase(phase2)
+#phase1 = norPhase(phase1)
+#phase2 = norPhase(phase2)
 
-plt.figure()
-plt.imshow(phase2,cmap='twilight')
+#plt.figure()
+#plt.imshow(phase2,cmap='twilight')
 
 
-plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
+#plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
 
 """# ** Generate indices of the input amplitude **"""
 initAmp_index = np.empty((N_slm,4))
@@ -70,24 +71,31 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[42]
+for i in range(49):
 
+    incident_pixel=[i]
+    fake_amp=0
+    for i in incident_pixel:
+        fake_amp = fake_amp+initAmp[i]
 
-fake_amp=0
-for i in incident_pixel:
-    fake_amp = fake_amp+initAmp[i]
+    #plotField(fake_amp,x_lens,y_lens,'input source')
+    #phase1 = torch.transpose(phase1)
+    E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)
+    inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
+    final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
+    final_I = abs(final_E)**2
+    final_I /= torch.max(final_I)
 
-plotField(fake_amp,x_lens,y_lens,'input source')
+    plotField(final_I,xw,yw,'imageplane')
+    plt.savefig(str(i)+'.png')
 
+# Save gif file
+imag_list=[]
+for i in range(49):
+    tmpimag = Image.open(str(i)+'.png')
+    imag_list.append(tmpimag)
+imag_list[0].save('scan.gif',save_all=True,append_images=imag_list,duration=200)
 
-#phase1 = torch.transpose(phase1)
-E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)
-inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
-final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
-final_I = abs(final_E)**2
-final_I /= torch.max(final_I)
-
-plotField(final_I,xw,yw,'imageplane')
 
 target_I_index = np.empty((N_slm,4))
 count=0
@@ -103,7 +111,7 @@ for i in range(49):
 target_I_plot = 0
 for i in incident_pixel:
     target_I_plot = target_I_plot + target_I[i]
-plotField(target_I_plot,xw,yw)
+#plotField(target_I_plot,xw,yw)
 
 
 plt.show()
