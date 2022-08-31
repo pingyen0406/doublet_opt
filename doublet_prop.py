@@ -53,7 +53,6 @@ phase2 -= torch.min(phase2)
 #plt.figure()
 #plt.imshow(phase2,cmap='twilight')
 
-
 #plot2Field(phase1,phase2,x_lens,y_lens,'Optimized phase mask 1','Optimized phase mask 2')
 
 """# ** Generate indices of the input amplitude **"""
@@ -68,35 +67,7 @@ for i in range(N_slm):
     # Generate initial amplitude with given position and size
     initAmp[i] = rect(phase1.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
     
-fake1 = torch.rand((401,401))
-fake2 = torch.ones((401,401))
-
-for i in range(49):
-
-    incident_pixel=[i]
-    fake_amp=0
-    for i in incident_pixel:
-        fake_amp = fake_amp+initAmp[i]
-
-    #plotField(fake_amp,x_lens,y_lens,'input source')
-    #phase1 = torch.transpose(phase1)
-    E_before_mask1,_,_ = band_limit_ASM(fake_amp,2000,mesh,1,1.55,device='cpu',cut=True)
-    inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
-    final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
-    final_I = abs(final_E)**2
-    final_I /= torch.max(final_I)
-
-    plotField(final_I,xw,yw,'imageplane')
-    plt.savefig(str(i)+'.png')
-
-# Save gif file
-imag_list=[]
-for i in range(49):
-    tmpimag = Image.open(str(i)+'.png')
-    imag_list.append(tmpimag)
-imag_list[0].save('scan.gif',save_all=True,append_images=imag_list,duration=200)
-
-
+"""# ** Generate indices of the target image **"""
 target_I_index = np.empty((N_slm,4))
 count=0
 for i in range(7):
@@ -105,15 +76,54 @@ for i in range(7):
         count+=1
 target_I_index = target_I_index.astype(int)
 target_I = torch.empty((N_slm,1203,1203))
+
+effi = torch.empty((49,4))
+
 for i in range(49):
-    target_I[i] = rect((1203,1203),target_I_index[i,0:2],target_I_index[i,2:4])
+    incident_pixel=[i]
+    
+    amp0 = initAmp[i]
+    int0 = abs(amp0)**2
 
-target_I_plot = 0
-for i in incident_pixel:
-    target_I_plot = target_I_plot + target_I[i]
-#plotField(target_I_plot,xw,yw)
+    E_before_mask1,_,_ = band_limit_ASM(amp0,2000,mesh,1,1.55,device='cpu',cut=True)
+    i0 = torch.sum(abs(E_before_mask1)**2)
+    effi[i,0] = i0/torch.sum(int0)
+    
+    inter_E,_,_ = band_limit_ASM(E_before_mask1*torch.exp(1j*phase1),1000,mesh,1,1.55/1.44,device='cpu',cut=True) 
+    i1 = torch.sum(abs(inter_E)**2)
+    effi[i,1] = i1/torch.sum(int0)
+    
+    final_E, xi, yi = band_limit_ASM(inter_E*torch.exp(1j*phase2),f,mesh,1,1.55,device='cpu') 
+    final_I = abs(final_E)**2
+    i2 = torch.sum(final_I)
+    effi[i,2] = i2/torch.sum(int0)
+    target_I_now = rect((1203,1203),target_I_index[i,0:2],target_I_index[i,2:4])
+    
+    effi[i,3] = torch.sum(final_I*target_I_now)/torch.sum(int0)
 
+    final_I /= torch.max(final_I)
 
+    #plotField(final_I,xw,yw,'imageplane')
+    #plt.savefig(str(i)+'.png')
+
+plt.figure()
+plt.plot(effi[:,0],linewidth=2,label='i0')
+plt.plot(effi[:,1],linewidth=2,label='i1')
+plt.plot(effi[:,2],linewidth=2,label='i2')
+plt.ylim([0.9,1])
+plt.legend()
+plt.figure()
+plt.plot(effi[:,3],linewidth=2,label='final')
+plt.legend()
 plt.show()
+
+
+# Save gif file
+# imag_list=[]
+# for i in range(49):
+#     tmpimag = Image.open(str(i)+'.png')
+#     imag_list.append(tmpimag)
+# imag_list[0].save('scan.gif',save_all=True,append_images=imag_list,duration=200)
+#plt.show()
 
 

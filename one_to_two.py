@@ -169,17 +169,6 @@ def main():
             target_I_index[count] = np.array([451+50*j,451+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
-    # target_I_test=0
-    # initAmp_test=0
-    # for i in range(10):
-    #     target_I_test += rect((1203,1203),target_I_index[2*i,0:2],target_I_index[2*i,2:4])
-    #     initAmp_test += rect((401,401),initAmp_index[2*i,0:2],initAmp_index[2*i,2:4])   
-    # plt.figure()
-    # plt.imshow(target_I_test)
-    # plt.figure()
-    # plt.imshow(initAmp_test)
-    # plt.show()
-    # breakpoint()
     """# Model """
     focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm).to(device)
     focusOpt = focusOpt.to(device)
