@@ -77,6 +77,7 @@ for i in range(7):
 target_I_index = target_I_index.astype(int)
 target_I = torch.empty((N_slm,1203,1203))
 
+# Create a empty array to record the efficiency
 effi = torch.empty((49,4))
 
 for i in range(49):
@@ -106,15 +107,24 @@ for i in range(49):
     #plotField(final_I,xw,yw,'imageplane')
     #plt.savefig(str(i)+'.png')
 
-plt.figure()
-plt.plot(effi[:,0],linewidth=2,label='i0')
-plt.plot(effi[:,1],linewidth=2,label='i1')
-plt.plot(effi[:,2],linewidth=2,label='i2')
-plt.ylim([0.9,1])
-plt.legend()
-plt.figure()
-plt.plot(effi[:,3],linewidth=2,label='final')
-plt.legend()
+fig = plt.figure(figsize=[7.5,6])
+ax = fig.add_subplot(111)
+i0 = ax.plot(effi[:,0],linewidth=2,label='Before MS1')
+i1 = ax.plot(effi[:,1],linewidth=2,label='Before MS2')
+i2 = ax.plot(effi[:,2],linewidth=2,label='Image plane')
+final_eff = ax.plot(effi[:,3],linewidth=2,label='Efficiency')
+ax.set_xlabel('Pixel number',fontsize=20)
+ax.xaxis.set_tick_params(length=6,width=3)
+plt.xticks(fontsize=18)
+ax.set_ylim([0,1.1])
+ax.set_ylabel('Efficiency',fontsize=20)
+ax.yaxis.set_tick_params(length=6,width=3)
+plt.yticks(fontsize=18)
+plt.legend(fontsize=18)
+for axis in ['top', 'bottom', 'left', 'right']:
+    ax.spines[axis].set_linewidth(2.5)
+plt.tight_layout()
+plt.savefig('results/Efficiency_220801.svg',format='svg',dpi=1200)
 plt.show()
 
 
