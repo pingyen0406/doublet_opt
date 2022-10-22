@@ -11,11 +11,11 @@ from one_to_two import Model
 from PIL import Image
 
 """Plot loss"""
-loss_file = np.loadtxt('results/loss_record_220801.txt')
-number = loss_file[0]
-loss = loss_file[1]
-#plt.figure()
-#plt.plot(number,loss,linewidth=2)
+# loss_file = np.loadtxt('results/loss_record_test_221021.txt')
+# number = loss_file[0]
+# loss = loss_file[1]
+# plt.figure()
+# plt.plot(number,loss,linewidth=2)
 
 """# Get cpu or gpu device for training."""
 device = 'cpu'
@@ -38,8 +38,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/optimized_mask1_220801.txt')
-phase2 = np.loadtxt('results/optimized_mask2_220801.txt')
+phase1 = np.loadtxt('results/test20221022_1.txt')
+phase2 = np.loadtxt('results/test20221022_2.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)
@@ -77,8 +77,7 @@ for i in range(7):
 target_I_index = target_I_index.astype(int)
 target_I = torch.empty((N_slm,1203,1203))
 
-# Create a empty array to record the efficiency
-effi = torch.empty((49,4))
+incident_pixel=[31]
 
 for i in range(49):
     incident_pixel=[i]

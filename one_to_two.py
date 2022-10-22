@@ -8,6 +8,7 @@ import torch.nn as nn
 from band_limit_ASM import band_limit_ASM
 from tools import *
 import time
+import datetime
 import yaml
 
 """# Get cpu or gpu device for training."""
@@ -21,6 +22,9 @@ torch.manual_seed(myseed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(myseed)
 
+# Currente date
+today = datetime.datetime.now()
+date = str(today.year)+str(today.month)+str(today.day)
 
 # Model class
 class Model(nn.Module):
@@ -59,32 +63,40 @@ def train(model,config,initAmp_index,target_I_index,device):
     loss_record = {'N':[], 'Loss':[]}
     min_mse = 10000
     iteration = 0
-    early_stop_cnt = 0    
+    early_stop_cnt = 0 
     while iteration < n_loop:
-        optimizer.zero_grad()
+        loss = 0
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
             initAmp = initAmp.to(device)
+            
             # Put initial ampitude into forward propagation and obtain image plane result
             pred = model(initAmp)
+            
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
-            if i ==0:            
-                pred_list = torch.unsqueeze(pred,dim=0)
-                target_I_list = torch.unsqueeze(target_I,dim=0)
-            else:
-                pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
-                target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            target_I = target_I.to(device)
+            # if i ==0:            
+            #     pred_list = torch.unsqueeze(pred,dim=0)
+            #     target_I_list = torch.unsqueeze(target_I,dim=0)
+            # else:
+            #     pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
+            #     target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            print('Current N', i)
             
-            
-        target_I_list = target_I_list.to(device)    
+            # Calaulate current loss and add it into total loss
+            current_loss = model.cal_loss(pred,target_I)
+            loss = loss + current_loss
+            del pred, target_I
+
         # Calaulate loss
-        loss = model.cal_loss(pred_list,target_I_list)     
+        optimizer.zero_grad()    
+        #loss = model.cal_loss(pred_list,target_I_list)    
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
-            torch.save(model.state_dict(),'best_model.pth') # Save best model if it improves.
+            torch.save(model.state_dict(),'best_model_'+date+'.pth') # Save best model if it improves.
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
@@ -100,7 +112,7 @@ def train(model,config,initAmp_index,target_I_index,device):
         if early_stop_cnt>config['early_stop_n']:
             print('Early stop triggered!!')
             break  
-    return model.phi1, model.phi2, loss_record
+    return loss_record
 
 
 # Input config class
@@ -139,7 +151,7 @@ class cfg_class:
                     setattr(self,opt,None)
             def __str__(self):
                 return str(yaml.dump(self.__dict__,default_flow_style=False))
-
+        
 # Main function
 def main():
     """# ** load input config **"""
@@ -153,7 +165,9 @@ def main():
     N_slm = cfg.N_slm
     slm_pitch = cfg.slm_pitch # pixels
     distance = cfg.distance
-    outName = cfg.outName
+    
+    # Print input configuration
+    print(cfg)
     """# ** Generate indices of the input slm source **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
@@ -169,38 +183,41 @@ def main():
             target_I_index[count] = np.array([451+50*j,451+50*i,50,50],dtype=int)
             count+=1
     target_I_index = target_I_index.astype(int)
+
     """# Model """
-    focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm).to(device)
+    focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm)
     focusOpt = focusOpt.to(device)
     initPhase = focusOpt.phi0
 
     """# ********************Start Training!****************************"""
     training_cfg = cfg.training
     start = time.time()
-    phase1, phase2, record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
+    record = train(focusOpt,training_cfg,initAmp_index,target_I_index,device)
     end = time.time()
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
-      
-    """# load the best model and save results"""
     
+    """# load the best model and save results"""
+
+
     best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
-    best_model.load_state_dict(torch.load('best_model.pth'))
+    best_model.load_state_dict(torch.load('best_model_'+date+'.pth'))
     best_model.eval()
     phase1 = best_model.phi1
     phase2 = best_model.phi2
     
-    np.savetxt('results/'+cfg.outName+'1.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/'+cfg.outName+'2.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+date+'_1.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+date+'_2.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_'+cfg.outName+'.txt',loss_record)
+    np.savetxt('results/loss_record_'+cfg.outName+date+'.txt',loss_record)
     
     
     """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
     with open('one_to_two.yaml','w') as log:
         yaml.dump(config,log)
-
+    
+    # Plot loss function
     plt.figure()
     plt.plot(record['N'],record['Loss'])
     plt.title('Loss')
