@@ -10,11 +10,11 @@ import time
 from one_to_two import Model
 
 """Plot loss"""
-loss_file = np.loadtxt('results/loss_record_optimized_mask_test.txt')
-number = loss_file[0]
-loss = loss_file[1]
-plt.figure()
-plt.plot(number,loss,linewidth=2)
+# loss_file = np.loadtxt('results/loss_record_test_221021.txt')
+# number = loss_file[0]
+# loss = loss_file[1]
+# plt.figure()
+# plt.plot(number,loss,linewidth=2)
 
 """# Get cpu or gpu device for training."""
 device = 'cpu'
@@ -37,8 +37,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/optimized_mask_test1.txt')
-phase2 = np.loadtxt('results/optimized_mask_test2.txt')
+phase1 = np.loadtxt('results/test20221022_1.txt')
+phase2 = np.loadtxt('results/test20221022_2.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)
@@ -66,7 +66,7 @@ for i in range(N_slm):
 fake1 = torch.rand((401,401))
 fake2 = torch.ones((401,401))
 
-incident_pixel=[0]
+incident_pixel=[31]
 
 
 fake_amp=0

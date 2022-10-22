@@ -18,4 +18,4 @@ one_to_two_config:
       n_loops: 100,
       early_stop_n: 50
     }
-    outName: 'optimized_mask_test'
+    outName: 'test'

@@ -1,6 +1,6 @@
 early_stop_n: 50
-n_loops: 20
+n_loops: 100
 optim_hparas:
   lr: 0.1
 optimizer: Adam
-totel elapsed time: 535.2227728366852
+totel elapsed time: 1881.876140832901

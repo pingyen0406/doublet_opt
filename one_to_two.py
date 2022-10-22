@@ -8,6 +8,7 @@ import torch.nn as nn
 from band_limit_ASM import band_limit_ASM
 from tools import *
 import time
+import datetime
 import yaml
 
 """# Get cpu or gpu device for training."""
@@ -21,6 +22,9 @@ torch.manual_seed(myseed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(myseed)
 
+# Currente date
+today = datetime.datetime.now()
+date = str(today.year)+str(today.month)+str(today.day)
 
 # Model class
 class Model(nn.Module):
@@ -61,33 +65,42 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0 
     while iteration < n_loop:
+        loss = 0
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
             initAmp = initAmp.to(device)
+            
             # Put initial ampitude into forward propagation and obtain image plane result
             pred = model(initAmp)
+            
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
             target_I = target_I.to(device)
-            if i ==0:            
-                pred_list = torch.unsqueeze(pred,dim=0)
-                target_I_list = torch.unsqueeze(target_I,dim=0)
-            else:
-                pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
-                target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            # if i ==0:            
+            #     pred_list = torch.unsqueeze(pred,dim=0)
+            #     target_I_list = torch.unsqueeze(target_I,dim=0)
+            # else:
+            #     pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
+            #     target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
+            print('Current N', i)
             
-            # Calaulate loss
-            
-        loss = model.cal_loss(pred_list,target_I_list)    
+            # Calaulate current loss and add it into total loss
+            current_loss = model.cal_loss(pred,target_I)
+            loss = loss + current_loss
+            del pred, target_I
+
+        # Calaulate loss
+        optimizer.zero_grad()    
+        #loss = model.cal_loss(pred_list,target_I_list)    
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
-            torch.save(model.state_dict(),'best_model.pth') # Save best model if it improves.
+            torch.save(model.state_dict(),'best_model_'+date+'.pth') # Save best model if it improves.
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
-        optimizer.zero_grad()
+
         loss.backward()
         optimizer.step()
         
@@ -185,17 +198,18 @@ def main():
     """# ********************End Training!****************************"""
     
     """# load the best model and save results"""
-    
+
+
     best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
-    best_model.load_state_dict(torch.load('best_model.pth'))
+    best_model.load_state_dict(torch.load('best_model_'+date+'.pth'))
     best_model.eval()
     phase1 = best_model.phi1
     phase2 = best_model.phi2
     
-    np.savetxt('results/'+cfg.outName+'1.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/'+cfg.outName+'2.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+date+'_1.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt('results/'+cfg.outName+date+'_2.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_'+cfg.outName+'.txt',loss_record)
+    np.savetxt('results/loss_record_'+cfg.outName+date+'.txt',loss_record)
     
     
     """ output log file"""
