@@ -65,7 +65,11 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0 
     while iteration < n_loop:
+        print('Current loop number:',iteration,' Loss= ',loss.detach().cpu().item())
+        # Reset total loss
         loss = 0
+        
+        # Iterate through each pixel in SLM
         for i in range(model.N_slm):
             # Generate initial amplitude with given position and size
             initAmp = rect(model.phi0.shape,initAmp_index[i,0:2],initAmp_index[i,2:4])
@@ -77,22 +81,12 @@ def train(model,config,initAmp_index,target_I_index,device):
             # Generate target intensity with given position and size
             target_I = rect(pred.shape,target_I_index[i,0:2],target_I_index[i,2:4])
             target_I = target_I.to(device)
-            # if i ==0:            
-            #     pred_list = torch.unsqueeze(pred,dim=0)
-            #     target_I_list = torch.unsqueeze(target_I,dim=0)
-            # else:
-            #     pred_list = torch.cat((pred_list,pred.unsqueeze(0)),dim=0)
-            #     target_I_list = torch.cat((target_I_list,target_I.unsqueeze(0)),dim=0)
-            print('Current N', i)
             
             # Calaulate current loss and add it into total loss
             current_loss = model.cal_loss(pred,target_I)
             loss = loss + current_loss
-            del pred, target_I
-
-        # Calaulate loss
-        optimizer.zero_grad()    
-        #loss = model.cal_loss(pred_list,target_I_list)    
+            del pred, target_I # Release memory
+   
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
@@ -100,11 +94,13 @@ def train(model,config,initAmp_index,target_I_index,device):
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
-
+        
+        # Back propagation
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-        print('Current loop number:',iteration,' Loss= ',loss.detach().cpu().item())
+        
         loss_record['N'].append(iteration)
         loss_record['Loss'].append(loss.detach().cpu().item())
         iteration+=1
@@ -168,14 +164,15 @@ def main():
     
     # Print input configuration
     print(cfg)
-    """# ** Generate indices of the input slm source **"""
+    
+    """# ** Generate position indices of the input slm source **"""
     initAmp_index = np.empty((N_slm,4))
     c_index = int(N_atom/2)
     for i in range(N_slm):
         initAmp_index[i] = np.array([c_index,c_index+slm_pitch*(i-int(N_slm/2)),2,2])
     initAmp_index = initAmp_index.astype(int)
     
-    """# ** Generate indices of the target inensity**"""
+    """# ** Generate position indices of the target pixels*"""
     target_I_index = np.empty((N_slm,4))
     count=0
     for i in range(int(np.sqrt(N_slm))):
@@ -184,7 +181,7 @@ def main():
             count+=1
     target_I_index = target_I_index.astype(int)
 
-    """# Model """
+    """# Construct model """
     focusOpt = Model(N_atom,distance,mesh,lambda0,N_slm)
     focusOpt = focusOpt.to(device)
     initPhase = focusOpt.phi0
@@ -197,9 +194,8 @@ def main():
     print('Elapsed time in training: ',end-start,'s')
     """# ********************End Training!****************************"""
     
+    
     """# load the best model and save results"""
-
-
     best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
     best_model.load_state_dict(torch.load('best_model_'+date+'.pth'))
     best_model.eval()
@@ -214,7 +210,7 @@ def main():
     
     """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
-    with open('one_to_two.yaml','w') as log:
+    with open('one_to_two_'+date+'.yaml','w') as log:
         yaml.dump(config,log)
     
     # Plot loss function
