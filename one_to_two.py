@@ -10,6 +10,7 @@ from tools import *
 import time
 import datetime
 import yaml
+import os
 
 """# Get cpu or gpu device for training."""
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -25,6 +26,12 @@ if torch.cuda.is_available():
 # Currente date
 today = datetime.datetime.now()
 date = str(today.year)+str(today.month)+str(today.day)
+
+# Check for not overwritting existing results
+count=1
+while os.path.exists('best_model_'+date+'.pth'):
+    date = str(today.year)+str(today.month)+str(today.day)+'_'+str(count)
+    count+=1
 
 # Model class
 class Model(nn.Module):
@@ -65,7 +72,6 @@ def train(model,config,initAmp_index,target_I_index,device):
     iteration = 0
     early_stop_cnt = 0 
     while iteration < n_loop:
-        print('Current loop number:',iteration,' Loss= ',loss.detach().cpu().item())
         # Reset total loss
         loss = 0
         
@@ -108,6 +114,8 @@ def train(model,config,initAmp_index,target_I_index,device):
         if early_stop_cnt>config['early_stop_n']:
             print('Early stop triggered!!')
             break  
+        
+        print('Current loop number:',iteration,' Loss= ',loss.detach().cpu().item())
     return loss_record
 
 
@@ -145,8 +153,8 @@ class cfg_class:
                     raise Exception('Missing mandatory parameter "{}"'.format(opt))
                 else:
                     setattr(self,opt,None)
-            def __str__(self):
-                return str(yaml.dump(self.__dict__,default_flow_style=False))
+    def __str__(self):
+        return str(yaml.dump(self.__dict__))
         
 # Main function
 def main():

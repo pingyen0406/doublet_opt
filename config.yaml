@@ -9,7 +9,7 @@ one_to_two_config:
       'd2': 20000
     }
     training: {
-      optimizer: 'Adam',
+      optimizer: 'SGD',
        optim_hparas: {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
           'lr': 0.1                  # learning rate 
           #'betas': (0.1,0.5),          
@@ -18,4 +18,4 @@ one_to_two_config:
       n_loops: 100,
       early_stop_n: 50
     }
-    outName: 'test'
+    outName: 'SGD'
