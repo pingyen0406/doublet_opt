@@ -25,7 +25,7 @@ if torch.cuda.is_available():
 
 # Currente date
 today = datetime.datetime.now()
-date = str(today.year)+str(today.month)+str(today.day)
+date = str(today.year)+str(today.month)+str(today.day)+str(today.hour)+str(today.minute)
 
 # Check for not overwritting existing results
 count=1
@@ -218,7 +218,7 @@ def main():
     
     """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
-    with open('one_to_two_'+date+'.yaml','w') as log:
+    with open('one_to_two_'+date+'.log','w') as log:
         yaml.dump(config,log)
     
     # Plot loss function
