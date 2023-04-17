@@ -23,15 +23,11 @@ torch.manual_seed(myseed)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(myseed)
 
-# Currente date
+# Obtain currente date and create directory
 today = datetime.datetime.now()
 date = str(today.year)+str(today.month)+str(today.day)+str(today.hour)+str(today.minute)
-
-# Check for not overwritting existing results
-count=1
-while os.path.exists('best_model_'+date+'.pth'):
-    date = str(today.year)+str(today.month)+str(today.day)+'_'+str(count)
-    count+=1
+os.mkdir(date)
+out_dir = 'result/'+date
 
 # Model class
 class Model(nn.Module):
@@ -96,7 +92,7 @@ def train(model,config,initAmp_index,target_I_index,device):
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
-            torch.save(model.state_dict(),'best_model_'+date+'.pth') # Save best model if it improves.
+            torch.save(model.state_dict(),out_dir+'best_model.pth') # Save best model if it improves.
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
@@ -205,20 +201,20 @@ def main():
     
     """# load the best model and save results"""
     best_model = Model(N_atom,distance,mesh,lambda0,N_slm)
-    best_model.load_state_dict(torch.load('best_model_'+date+'.pth'))
+    best_model.load_state_dict(torch.load(out_dir+'best_model_.pth'))
     best_model.eval()
     phase1 = best_model.phi1
     phase2 = best_model.phi2
     
-    np.savetxt('results/'+cfg.outName+date+'_1.txt',phase1.cpu().detach().numpy()*2*np.pi)
-    np.savetxt('results/'+cfg.outName+date+'_2.txt',phase2.cpu().detach().numpy()*2*np.pi)
+    np.savetxt(out_dir+cfg.outName+'_1.txt',phase1.cpu().detach().numpy()*2*np.pi)
+    np.savetxt(out_dir+cfg.outName+'_2.txt',phase2.cpu().detach().numpy()*2*np.pi)
     loss_record = np.array([record['N'],record['Loss']])
-    np.savetxt('results/loss_record_'+cfg.outName+date+'.txt',loss_record)
+    np.savetxt(out_dir+'loss_record_.txt',loss_record)
     
     
     """ output log file"""
     config = {**training_cfg,'totel elapsed time':end-start}
-    with open('one_to_two_'+date+'.log','w') as log:
+    with open(out_dir+'one_to_two.log','w') as log:
         yaml.dump(config,log)
     
     # Plot loss function

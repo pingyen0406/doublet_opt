@@ -1,4 +1,5 @@
 """Propagation through doublet metasurface"""
+# The code is not organiazed here. It should be manually modified to match the needs. 
 
 import numpy as np
 import matplotlib.pyplot as plt
