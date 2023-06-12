@@ -40,8 +40,8 @@ yw = torch.tensor([(i)*mesh for i in range(3*n_mesh)])
 xw -= torch.median(xw)
 yw -= torch.median(yw)
 
-phase1 = np.loadtxt('results/SGD20221114_1.txt')
-phase2 = np.loadtxt('results/SGD20221114_2.txt')
+phase1 = np.loadtxt('results/optimized_mask1_220801.txt')
+phase2 = np.loadtxt('results/optimized_mask2_220801.txt')
 
 phase1 = torch.tensor(phase1)
 phase2 = torch.tensor(phase2)
@@ -105,39 +105,54 @@ for i in range(49):
     effi[i,3] = torch.sum(final_I*target_I_now)/torch.sum(int0)
 
     final_I /= torch.max(final_I)
+    
+    data = final_I.cpu().detach().numpy()
+    xData = xw.cpu().detach().numpy()
+    yData = yw.cpu().detach().numpy()
+    if i==0:
+        fig = plt.figure()
+    
+    ax = fig.add_subplot(7,7,i)
+    plotData = plt.imshow(data[400:801,400:801],origin='lower',extent=[xData[400],xData[801],yData[400],yData[801]],
+                            cmap='hot',aspect='auto')
+    plt.axis('off')
+    
+    if i==48:
+        plt.show()
+    #plt.savefig('results/gif/'+str(i)+'.svg')
 
-    plotField(final_I,xw,yw,'imageplane')
-    plt.savefig('results/gif/'+str(i)+'.png')
+    
 
-fig = plt.figure(figsize=[7.5,6])
-ax = fig.add_subplot(111)
-i0 = ax.plot(effi[:,0],linewidth=2,label='Before MS1')
-i1 = ax.plot(effi[:,1],linewidth=2,label='Before MS2')
-i2 = ax.plot(effi[:,2],linewidth=2,label='Image plane')
-final_eff = ax.plot(effi[:,3],linewidth=2,label='Efficiency')
-ax.set_xlabel('Pixel number',fontsize=20)
-ax.xaxis.set_tick_params(length=6,width=3)
-plt.xticks(fontsize=18)
-ax.set_ylim([0,1.1])
-ax.set_ylabel('Efficiency',fontsize=20)
-ax.yaxis.set_tick_params(length=6,width=3)
-plt.yticks(fontsize=18)
-plt.legend(fontsize=18)
-for axis in ['top', 'bottom', 'left', 'right']:
-    ax.spines[axis].set_linewidth(2.5)
-plt.tight_layout()
+
+# fig = plt.figure(figsize=[7.5,6])
+# ax = fig.add_subplot(111)
+# i0 = ax.plot(effi[:,0],linewidth=2,label='Before MS1')
+# i1 = ax.plot(effi[:,1],linewidth=2,label='Before MS2')
+# i2 = ax.plot(effi[:,2],linewidth=2,label='Image plane')
+# final_eff = ax.plot(effi[:,3],linewidth=2,label='Efficiency')
+# ax.set_xlabel('Pixel number',fontsize=20)
+# ax.xaxis.set_tick_params(length=6,width=3)
+# plt.xticks(fontsize=18)
+# ax.set_ylim([0,1.1])
+# ax.set_ylabel('Efficiency',fontsize=20)
+# ax.yaxis.set_tick_params(length=6,width=3)
+# plt.yticks(fontsize=18)
+# plt.legend(fontsize=18)
+# for axis in ['top', 'bottom', 'left', 'right']:
+#     ax.spines[axis].set_linewidth(2.5)
+# plt.tight_layout()
 #plt.savefig('results/Efficiency_220801.svg',format='svg',dpi=1200)
 #plt.show()
 
 
 # Save gif file
-imag_list=[]
-for i in range(49):
-    tmpimag = Image.open('results/gif/'+str(i)+'.png')
-    imag_list.append(tmpimag)
-imag_list[0].save('results/gif/scan221114.gif',save_all=True,append_images=imag_list,duration=200)
-for i in range(49):
-    os.remove('results/gif/'+str(i)+'.png')
+# imag_list=[]
+# for i in range(49):
+#     tmpimag = Image.open('results/gif/'+str(i)+'.png')
+#     imag_list.append(tmpimag)
+# imag_list[0].save('results/gif/scan221114.gif',save_all=True,append_images=imag_list,duration=200)
+# for i in range(49):
+#     os.remove('results/gif/'+str(i)+'.png')
 
 
 
