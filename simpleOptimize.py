@@ -10,7 +10,7 @@ from band_limit_ASM import band_limit_ASM
 
 """# Get cpu or gpu device for training."""
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using {device} device")
+print(f"*****Using {device} device*****")
 myseed = 42069  # set a random seed for reproducibility
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -24,7 +24,8 @@ class Model(nn.Module):
     def __init__(self,input_dim,propZ,mesh,lambda0):
         super().__init__()
         # initializing the phase mask with random phase
-        self.phi0 = torch.ones((int(input_dim),int(input_dim)))
+        #self.phi0 = torch.ones((int(input_dim),int(input_dim)))
+        self.phi0 = torch.rand((int(input_dim),int(input_dim)))
         self.phi = nn.Parameter(torch.ones((int(input_dim),int(input_dim))))
         self.mesh = mesh
         self.lambda0 = lambda0
@@ -38,9 +39,7 @@ class Model(nn.Module):
 
     def cal_loss(self,pred,target):
         return -torch.sum(pred*target)
-        loss = nn.CrossEntropyLoss()
-        target = target.double()
-        return loss(pred,target)
+        
 
 # Optimization    
 def train(model,config,initAmp,target,device):
@@ -57,13 +56,13 @@ def train(model,config,initAmp,target,device):
     while iteration < n_loop:
         optimizer.zero_grad()
         pred = model(initAmp)
-        #pred = pred.to(device)
+        pred = pred.to(device)
         loss = model.cal_loss(pred,target)
         #loss = F.cross_entropy(pred.double(),target.double())
         # Check if the loss is improved
         if loss < min_mse:
             min_mse = loss
-            torch.save(model.state_dict(),'results/best_model.pth') # Save best model if it improves.
+            torch.save(model.state_dict(),'results/simple_best_model.pth') # Save best model if it improves.
             early_stop_cnt=0 # reset early stop count
         else: 
             early_stop_cnt+=1
@@ -85,12 +84,12 @@ def main():
     config={
         'optimizer': 'Adam',
         'optim_hparas': {                # hyper-parameters for the optimizer (depends on which optimizer you are using)
-            'lr': 0.01,                  # learning rate 
+            'lr': 0.1,                  # learning rate 
             #'betas': (0.1,0.5),          
             #'momentum': 0.5              # momentum for SGD
         },
-        'n_loops': 100,
-        'early_stop_n': 100
+        'n_loops': 50,
+        'early_stop_n': 50
     }
 
     """# ** initial parameters **"""
@@ -118,28 +117,23 @@ def main():
     """# ** Generate initial amp **"""
     #initAmp = torch.rand((len(x_lens),len(y_lens)))
     initAmp = gaussian(lambda0,300,0.001,x_lens,y_lens)
-    # for i in range(9):
-    #     initAmp += gaussian(1.55,2,200,x_lens,y_lens-25*(i-4))
-    initAmp /= torch.max(initAmp)
+    #initAmp = initAmp/torch.max(initAmp)
     #initAmp = torch.ones((n_mesh,n_mesh))
 
     """# ** Define target E-field**"""
-    from PIL import Image
-    target_image = Image.open('figures/testZ.png')
-    target_image = target_image.resize((len(xw),len(yw)))
-    target_image = target_image.convert('L')
-    target_I = np.array(target_image,dtype=float)
-    target_I /= np.max(target_I)
-    target_I = torch.tensor(target_I)
+    # load from image
+    # from PIL import Image
+    # target_image = Image.open('figures/testZ.png')
+    # target_image = target_image.resize((len(xw),len(yw)))
+    # target_image = target_image.convert('L')
+    # target_I = np.array(target_image,dtype=float)
+    # target_I = target_I/np.max(target_I)
+    # target_I = torch.tensor(target_I)
 
-    # target_E = gaussian(lambda0,3,0.001,xw,yw)
-    # target_E = rect(xw,yw,[1500,1800],[100,100])
-    # target_E = 0
-    # for i in range(3):
-    #     for j in range(3):
-    #        target_E += gaussian(lambda0,5,0.0001,xw+(i-1)*30,yw+(j-1)*30)
-    # target_I = abs(target_E)**2
-    # target_I /= torch.max(target_I)
+    # Gaussian
+    target_E = gaussian(lambda0,3,0.001,xw,yw)
+    target_I = abs(target_E)**2
+    target_I /= torch.max(target_I)
 
     """#********************** Model ***********************************"""
     focusOpt = Model(N_atom*period/mesh,f,mesh,lambda0).to(device)
@@ -163,8 +157,8 @@ def main():
     """ Calculate image plane intensity using initial random phase"""
     init_imagE ,xi0 ,yi0 = band_limit_ASM(initAmp*torch.exp(1j*initPhase*2*torch.pi),f,mesh,1,lambda0) 
     init_imagI = abs(init_imagE)**2
-    init_imagI /= torch.max(init_imagI)
-
+    init_imagI = init_imagI/torch.max(init_imagI)
+    
     """ Compare optimized phase and intensity with initial phase and target intensity """
     fig, axs= plt.subplots(2,3)
     im1 = axs[0,0].imshow(detach(initPhase),origin='lower',extent=[x_lens[0],x_lens[-1],y_lens[0],y_lens[-1]],cmap='jet',aspect='equal')
